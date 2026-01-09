@@ -17,65 +17,64 @@ let qrCodeData = null;
 let isConnected = false;
 
 async function connectToWhatsApp() {
+    // Certifique-se de que a pasta 'auth_info' existe e tem permissão de escrita
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-
+    
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        printQRInTerminal: true, // Mantém no terminal para backup
+        browser: ['WhatsApp Web Clone', 'Chrome', '1.0.0']
     });
 
     sock.ev.on('creds.update', saveCreds);
-
+    
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
-
+        
         if (qr) {
             qrCodeData = await QRCode.toDataURL(qr);
-            io.emit('qr', qrCodeData);
+            io.emit('qr', qrCodeData); // Envia o QR para quem já está conectado
         }
-
+        
         if (connection === 'close') {
-            isConnected = false;
-            io.emit('disconnected');
-            // Tenta reconectar se não for um logout intencional
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) {
-                connectToWhatsApp();
-            }
+            isConnected = false;
+            qrCodeData = null;
+            io.emit('disconnected');
+            if (shouldReconnect) connectToWhatsApp();
         } else if (connection === 'open') {
             isConnected = true;
             qrCodeData = null;
+            console.log('✅ WhatsApp Conectado!');
             io.emit('connected');
         }
     });
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0];
-        if (!msg.message) return;
-
+        if (!msg.message || msg.key.fromMe) return;
+        
         io.emit('message', {
             from: msg.key.remoteJid,
-            text: msg.message.conversation || msg.message.extendedTextMessage?.text,
-            fromMe: msg.key.fromMe,
+            text: msg.message.conversation || msg.message.extendedTextMessage?.text || "Mensagem de mídia",
+            fromMe: false,
             timestamp: msg.messageTimestamp
         });
     });
 }
 
+// Rota para entregar o QR atual para novos acessos
 app.get('/qr', (req, res) => {
     res.json({ qr: qrCodeData, connected: isConnected });
 });
 
 app.post('/send', async (req, res) => {
     const { number, message } = req.body;
-
-    if (!sock || !isConnected) {
-        return res.status(500).json({ error: "WhatsApp não está conectado" });
-    }
-
+    if (!isConnected) return res.status(500).json({ error: "WhatsApp não conectado" });
+    
     try {
-        // CORREÇÃO: Removidas as barras invertidas extras
-        await sock.sendMessage(`${number}@s.whatsapp.net`, { text: message });
+        const jid = number.includes('@s.whatsapp.net') ? number : `${number}@s.whatsapp.net`;
+        await sock.sendMessage(jid, { text: message });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -84,7 +83,12 @@ app.post('/send', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-    // CORREÇÃO: Removidas as barras invertidas extras
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Servidor rodando em: http://localhost:${PORT}`);
     connectToWhatsApp();
+});
+
+// Evento quando o usuário abre o site
+io.on('connection', (socket) => {
+    if (qrCodeData) socket.emit('qr', qrCodeData);
+    if (isConnected) socket.emit('connected');
 });

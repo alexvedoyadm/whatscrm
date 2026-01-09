@@ -1,15 +1,21 @@
 {
-  "name": "whatsapp-backend",
-  "version": "1.0.0",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.6.1",
-    "@whiskeysockets/baileys": "^6.5.0",
-    "qrcode": "^1.5.3",
-    "cors": "^2.8.5"
-  }
+    "name": "whatsapp-backend",
+    "version": "1.0.0",
+    "description": "Backend para Clone do WhatsApp Web",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@whiskeysockets/baileys": "^6.7.0",
+        "cors": "^2.8.5",
+        "express": "^4.19.2",
+        "qrcode": "^1.5.3",
+        "socket.io": "^4.7.5",
+        "pino": "^9.0.0"
+    }
 }
