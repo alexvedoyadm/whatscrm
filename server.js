@@ -37,7 +37,11 @@ async function connectToWhatsApp() {
         if (connection === 'close') {
             isConnected = false;
             io.emit('disconnected');
-            connectToWhatsApp();
+            // Tenta reconectar se não for um logout intencional
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            if (shouldReconnect) {
+                connectToWhatsApp();
+            }
         } else if (connection === 'open') {
             isConnected = true;
             qrCodeData = null;
@@ -64,16 +68,23 @@ app.get('/qr', (req, res) => {
 
 app.post('/send', async (req, res) => {
     const { number, message } = req.body;
+
+    if (!sock || !isConnected) {
+        return res.status(500).json({ error: "WhatsApp não está conectado" });
+    }
+
     try {
-        await sock.sendMessage(\`\${number}@s.whatsapp.net\`, { text: message });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+        // CORREÇÃO: Removidas as barras invertidas extras
+        await sock.sendMessage(`${number}@s.whatsapp.net`, { text: message });
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(\`Server running on port \${PORT}\`);
-  connectToWhatsApp();
+    // CORREÇÃO: Removidas as barras invertidas extras
+    console.log(`Server running on port ${PORT}`);
+    connectToWhatsApp();
 });
